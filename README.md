@@ -1,4 +1,4 @@
-#Fine-tuning Vision Foundation-Models for Digital Pathology
+# Fine-tuning Vision Foundation-Models for Digital Pathology
 
 This repository showcases how to fine-tune [H-optimus-0](https://huggingface.co/bioptimus/H-optimus-0) on patch-level and whole-slide level tasks for digital pathology using AWS:
 The different steps are:
