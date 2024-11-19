@@ -3,6 +3,8 @@ import argparse
 import torch
 import shutil
 from tqdm import tqdm 
+import numpy as np
+import pandas as pd
 import torch.optim as optim
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, roc_auc_score
@@ -96,8 +98,6 @@ for epoch in range(num_epochs):
     # Validation
     model.eval()
     with torch.no_grad():
-        correct = 0
-        total = 0
         validation_avg_loss = 0
         true_labels, predicted_labels = [], []
 
@@ -105,26 +105,24 @@ for epoch in range(num_epochs):
             mask_b = val_embeddings_b.sum(-1, keepdim=True) == 0.0
             val_embeddings_b, val_labels_b = val_embeddings_b.to("cuda"), val_labels_b.to("cuda")
             mask_b = mask_b.to("cuda")
-            
-            logits_b = model(val_embeddings_b, mask_b)
+
+            logits_b = model(val_embeddings_b, mask_b).squeeze()
+            logits_b = logits_b.unsqueeze(0) if logits_b.dim() == 0 else logits_b
             preds_b = F.sigmoid(logits_b)
             
             #preds_b = torch.argmax(val_logits, dim=1)
-            
-            true_labels.append(val_labels_b.cpu().numpy())
-            predicted_labels.append(preds_b.cpu().numpy())
-            total += val_labels_b.size(0)
-            correct += (preds_b == val_labels_b).sum().item()
-            validation_avg_loss += criterion(logits_b, val_labels_b).item()
-            
-        accuracy = accuracy_score(true_labels, predicted_labels>0.5)
-        roc_auc_score = roc_auc_score(true_labels, predicted_labels)
 
-        print(f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {validation_avg_loss/len(dataset.val_loader):.4f}")
+            true_labels.extend(val_labels_b.cpu().numpy()) 
+            predicted_labels.extend(preds_b.cpu().numpy())
+            validation_avg_loss += criterion(preds_b, val_labels_b).item()
+            
+        accuracy = accuracy_score(np.array(true_labels), np.array(predicted_labels)>0.5)
+        rocauc = roc_auc_score(np.array(true_labels), np.array(predicted_labels))
+
+        print(f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {validation_avg_loss/len(dataloader_test):.4f}")
         print(f"Validation Accuracy: {accuracy}")
-        print(f"Validation Accuracy (computed): {100 * correct / total:.2f}%")
-        print(f"ValidationROCAUC: {roc_auc_score}")
-        
+        print(f"Validation ROC AUC: {rocauc}")
+
         if accuracy > best_acc:
             best_acc = accuracy
             save_checkpoint(model, is_best=True) 
