@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EFS to Finetune Pathology Foundational models on downstream tasks
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: The CIDR block for the VPC.
+  PrivateSubnetCidr1:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: The CIDR block for the first private subnet.
+  PrivateSubnetCidr2:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: The CIDR block for the second private subnet.
+  PublicSubnetCidr1:
+    Type: String
+    Default: 10.0.10.0/24
+    Description: The CIDR block for the first public subnet.
+  PublicSubnetCidr2:
+    Type: String
+    Default: 10.0.20.0/24
+    Description: The CIDR block for the second public subnet.
+  NotebookInstanceType:
+    Type: String
+    Default: ml.t3.medium
+    Description: The instance type for the SageMaker Notebook Instance.
+
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnetCidr1
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnetCidr2
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  S3VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName:  !Sub 'com.amazonaws.${AWS::Region}.s3'
+      RouteTableIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+
+  EFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      Encrypted: True
+      LifecyclePolicies:
+        - TransitionToIA: 'AFTER_30_DAYS'
+
+  EFSMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SubnetId: !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for EFS access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref SageMakerSecurityGroup
+      VpcId: !Ref VPC
+
+  SageMakerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for SageMaker
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  SageMakerLifecycleConfig:
+    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Properties:
+      NotebookInstanceLifecycleConfigName: EFSMountConfig
+      OnStart:
+        - Content: 
+            Fn::Base64:
+                !Sub |
+                #!/bin/bash
+                set -e
+                
+                # Mount the EFS file system
+                sudo mkdir -p /home/ec2-user/SageMaker/mnt/efs
+                sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport ${EFSFileSystem}.efs.${AWS::Region}.amazonaws.com:/ /home/ec2-user/SageMaker/mnt/efs
+                
+                # Set appropriate permissions
+                sudo chmod go+rw /home/ec2-user/SageMaker/mnt/efs
+                
+                echo "EFS mounted successfully"
+    
+  SageMakerNotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      InstanceType: !Ref NotebookInstanceType
+      RoleArn: !GetAtt SageMakerRole.Arn
+      VolumeSizeInGB: 50
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroupIds:
+        - !Ref SageMakerSecurityGroup
+      LifecycleConfigName: EFSMountConfig
+
+  SageMakerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+        - arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+
+Outputs:
+  EFSFileSystemId:
+    Description: The ID of the EFS file system.
+    Value: !Ref EFSFileSystem
+
+  SageMakerNotebookInstanceName:
+    Description: The name of the SageMaker Notebook Instance.
+    Value: !Ref SageMakerNotebookInstance
+
+  SageMakerSubnet:
+    Description: The subnet for the SageMaker Notebook Instance.
+    Value: !Ref PrivateSubnet1
+
+  SageMakerSecurityGroup:
+    Description: The security group for the SageMaker Notebook Instance.
+    Value: !Ref SageMakerSecurityGroup

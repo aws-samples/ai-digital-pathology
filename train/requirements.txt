@@ -1,0 +1,6 @@
+timm
+evaluate
+tensorboard
+openpyxl
+h5py
+torchmetrics
