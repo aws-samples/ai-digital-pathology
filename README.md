@@ -11,6 +11,7 @@ The different steps are:
    * Whole-Slide level feature extraction pipeline: This task uses a custom Docker image for tiling and feature extraction from whole-slide images. The Docker image is built and pushed using the `preprocessing/build_and_push.sh` script.
    * Whole-Slide level WSI prediction using Multiple Instance Learning : This task uses the features extracted from the TCGA-COAD dataset to predict MSI status at the whole-slide level. The training script is located at `train/train_msi_tcga.py`
 
+[!Pathology overview](pathology_overview.png)
 
 The `train.ipynb` notebook in this repository demonstrates how to start the different training jobs for each task. It includes code for:
   * Setting up the SageMaker session and defining EFS inputs
