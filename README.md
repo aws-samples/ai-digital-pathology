@@ -27,14 +27,14 @@ To use this notebook:
   
 # Initialization Steps: 
 
-1. Deploy the required Infrastructure using the provided CloudFormation stack: ```aws cloudformation deploy --template-file infra/infra-stack.yml --stack-name EFS-SM --profile=pidemal+11-Admin --capabilities CAPABILITY_IAM```. As part of the deployment, the following infrastructure is being deployed: 
+1. Deploy the required Infrastructure using the provided CloudFormation stack: ```aws cloudformation deploy --template-file infra/infra-stack.yml --stack-name EFS-SM --profile=XXXXX --capabilities CAPABILITY_IAM```. As part of the deployment, the following infrastructure is being deployed: 
    * **Networking Infrastructure**: A VPC with a public and a private subnet. The Public Subnet has internet access, but the private subnet does not.
    * An **Elastic File System** with LifeCycle Configuration : The EFS is hosted on a the private subnet
    * A **SageMaker Notebook Instance** with a LifeCycle Configuration that mounts the EFS on the SageMaker Instance at start time. 
    * A **SageMaker Notebook Instance** Execution Role that has access to the EFS and full SageMaker permissions. 
   
 2. Retrieve the `EFSFileSystemId` and the `SageMakerNotebookInstanceName` that was created in the previous time. You can retrieve these values in the console or by running the following command: 
-```pathology-blogpost % aws cloudformation describe-stacks --stack-name EFS --query 'Stacks[0].Outputs' --profile=pidemal+11-Admin```
+```pathology-blogpost % aws cloudformation describe-stacks --stack-name EFS --query 'Stacks[0].Outputs' --profile=XXXXX```
 
 3. At this stage, you are ready to mount your EFS on your SageMaker notebook. For full details, you can refer to the following [blogpost](https://aws.amazon.com/blogs/machine-learning/mount-an-efs-file-system-to-an-amazon-sagemaker-notebook-with-lifecycle-configurations/)
 
