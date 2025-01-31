@@ -6,11 +6,6 @@ import timm
 from torchvision import transforms
 from PIL import Image
 
-# Source: https://github.com/bioptimus/releases/tree/main/models/h-optimus/v0?utm_source=owkin&utm_medium=referral&utm_campaign=h-bioptimus-o
-# wget --no-check-certificate https://public-bioptimus-eu-west-3.s3.eu-west-3.amazonaws.com/h-optimus-v0/checkpoint.pth
-
-MODEL_DIRECTORY = os.environ.get('SM_CHANNEL_MODELS', '/models/')
-
 class HOPTIMUSZero(nn.Module):
     def __init__(self, checkpoint=None):
         super(HOPTIMUSZero, self).__init__()
@@ -42,12 +37,11 @@ class HOPTIMUSZero(nn.Module):
         } 
 
 if __name__ == "__main__":
-    PATH_TO_CHECKPOINT = f"{MODEL_DIRECTORY}checkpoint.pth"  # Path to the downloaded checkpoint
-    
     # Initialize the model
-    model = HOPTIMUSZero(PATH_TO_CHECKPOINT)
-    model = model.to("cuda")
-    
+    model = HOPTIMUSZero()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device=device)
+
     # Create a random input image
     input_image = torch.rand(3, 224, 224)
     input_image = transforms.ToPILImage()(input_image)
