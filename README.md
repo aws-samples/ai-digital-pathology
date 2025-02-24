@@ -67,13 +67,15 @@ https://aws.amazon.com/blogs/machine-learning/mount-an-efs-file-system-to-an-ama
 
 
 
-5. Here, we will be leveraging the Foundational Model **H-Optimus-0** that was trained by [BioOptimus](https://www.bioptimus.com/news/bioptimus-launches-h-optimus-0-the-worlds-largest-open-source-ai-foundation-model-for-pathology). The model is weights are opensourced and can be downloaded to our EFS. 
+5. Here, we will be leveraging the Foundational Model **H-Optimus-0** that was trained by [BioOptimus](https://www.bioptimus.com/news/bioptimus-launches-h-optimus-0-the-worlds-largest-open-source-ai-foundation-model-for-pathology). The model is weights are opensourced and can be downloaded via HuggingFace:
 
-```bash
-cd SageMaker/mnt/efs
-mkdir models && cd models
-wget --no-check-certificate https://public-bioptimus-eu-west-3.s3.eu-west-3.amazonaws.com/h-optimus-v0/checkpoint.pth
+```python
+import timm
+model = timm.create_model(
+    "hf-hub:bioptimus/H-optimus-0", pretrained=True, init_values=1e-5, dynamic_img_size=False
+)
 ```
+
 
  # MHIST Model Training steps
 
